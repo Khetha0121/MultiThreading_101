@@ -134,7 +134,7 @@ The code uses **method-level synchronization** on the BankAccount:
 6. Total execution time: roughly 35 seconds (7 transactions × 5 threads, but overlapped)
 
 ### Output Pattern
-You'll see interleaved output like:
+Sample Interleaved output one might see:
 ```
 [Khethokuhle] Deposited: 45.67 | New Balance: 245.67
 [Khethokuhle] Withdrew: 23.45 | New Balance: 222.22
@@ -158,23 +158,12 @@ Since all threads only ever want the same single resource (the BankAccount), the
 
 ## Best Practices Observed
 
-### ✅ Good Practices
+### Good Practices
 1. **Proper synchronization** - All shared data access is synchronized
 2. **Exception handling** - InterruptedException is caught and thread interrupt status restored
 3. **Resource cleanup** - Using join() to wait for threads before showing results
 4. **Immutable task state** - TransactionTask fields are final
 
-### ⚠️ Areas for Improvement
-1. **Coarse-grained locking** - Entire methods are synchronized, which may be overkill
-2. **No timeout handling** - Threads could wait indefinitely
-3. **Console I/O in synchronized block** - Printing happens while holding the lock
-4. **No graceful shutdown mechanism**
-
-## Performance Characteristics
-
-- **Throughput**: Limited by synchronization - only one transaction at a time
-- **Latency**: Each transaction must wait for lock acquisition
-- **Scalability**: Adding more threads won't increase throughput, just contention
 
 ## Commented Code Analysis
 
@@ -189,10 +178,10 @@ If these were uncommented and used, **deadlock would become possible** if transf
 
 ## Summary
 
-This is a well-structured, thread-safe banking simulation that demonstrates:
+This multithreaded banking app simulation demonstrates:
 - Safe concurrent access to shared resources
 - Proper thread lifecycle management  
 - Basic synchronization techniques
 - Deadlock-free design (by having only one shared resource)
 
-The code serves as a good foundation for learning multithreading concepts, with clear opportunities for enhancement as complexity increases.
+
