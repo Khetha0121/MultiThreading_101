@@ -1,250 +1,198 @@
-# Thread-Safe Banking System - Documentation & Best Practices
+# Banking Simulation Code Documentation
 
-## Overview
+## Current Code Analysis
 
-This Java application demonstrates a banking system with concurrent transaction processing using multiple threads. The system consists of three classes that work together to simulate banking operations while addressing thread safety concerns and potential deadlock conditions.
+This Java banking simulation demonstrates basic multithreading with a single shared bank account accessed by multiple concurrent threads.
 
-## Class Architecture
+## Code Structure
 
-### 1. BankAccount Class
-
-The `BankAccount` class represents a bank account with basic banking operations.
-
-#### Key Attributes
+### 1. BankingSimulation (Main Class)
 ```java
-private String accountHolder;    // Account owner's name
-private double balance;          // Current account balance
+public static void main(String[] args) {
+    BankAccount kk = new BankAccount("Khethokuhle", 200);
+    
+    Thread t1 = new Thread(new TransactionTask(kk));
+    Thread t2 = new Thread(new TransactionTask(kk));
+    Thread t3 = new Thread(new TransactionTask(kk));
+    Thread t4 = new Thread(new TransactionTask(kk));
+    Thread t5 = new Thread(new TransactionTask(kk));
+    
+    // Start all threads
+    t1.start(); t2.start(); t3.start(); t4.start(); t5.start();
+    
+    // Wait for all threads to complete
+    try {
+        t1.join(); t2.join(); t3.join(); t4.join(); t5.join();
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+    }
+    
+    System.out.println("\n--- Final Balances ---");
+    System.out.printf("Khethokuhle: %.2f%n", kk.getBalance());
+}
 ```
 
-#### Constructor
+**What this does:**
+- Creates one bank account with initial balance of 200
+- Creates 5 threads that all operate on the same account
+- Starts all threads simultaneously
+- Waits for all threads to finish using `join()`
+- Displays final balance
+
+### 2. BankAccount Class
 ```java
-public BankAccount(String accountHolder, double initialBalance)
-```
-- Initializes account with holder name and starting balance
-- Simple parameter assignment without additional validation
-
-#### Core Operations
-
-**Deposit Operation**
-```java
-public synchronized void deposit(double amount)
-```
-- **Thread Safety**: Uses `synchronized` keyword for method-level locking
-- **Atomic Operation**: Balance update is thread-safe
-- **Logging**: Provides transaction feedback with formatted output
-
-**Withdrawal Operation**
-```java
-public synchronized boolean withdraw(double amount)
-```
-- **Balance Validation**: Checks sufficient funds before withdrawal
-- **Return Value**: Boolean indicates success/failure
-- **Atomic Operation**: Balance check and update performed atomically
-- **Error Handling**: Logs insufficient funds scenarios
-
-**Transfer Operation**
-```java
-public void transferTo(BankAccount target, double amount)
-```
-- **Non-synchronized method**: Only calls synchronized methods
-- **Conditional Transfer**: Only proceeds if withdrawal is successful
-- **Logging**: Provides transfer confirmation with recipient details
-
-**Balance Inquiry**
-```java
-public double getBalance()
-```
-- **Simple getter**: Returns current balance
-- **Note**: Not synchronized in original implementation
-
-### 2. TransactionTask Class
-
-The `TransactionTask` class implements `Runnable` to perform concurrent banking operations.
-
-#### Attributes
-```java
-private final BankAccount account1;    // Primary account for operations
-private final BankAccount account2;    // Secondary account for transfers
-```
-
-#### Constructor
-```java
-public TransactionTask(BankAccount a1, BankAccount a2)
-```
-- Takes two accounts to operate between
-- Stores references as final fields
-
-#### Run Method
-```java
-public void run()
-```
-- Executes 5 random banking operations per thread
-- Uses `Math.random()` for random amount and action selection
-- Three possible actions: deposit (0), withdraw (1), transfer (2)
-- Implements 500ms fixed delay with `Thread.sleep()`
-- Handles `InterruptedException` with proper thread interruption
-
-### 3. BankingSimulation Class (Main)
-
-The main class orchestrates the concurrent banking simulation.
-
-#### Key Features
-- Creates two bank accounts: "Khethokuhle" and "Nokwanda" with $200 each
-- Launches two threads with cross-account operations
-- Uses `Thread.join()` to wait for completion
-- Displays final account balances
-
-## Thread Safety Analysis
-
-### Synchronized Methods Used
-The original code uses `synchronized` methods for thread safety:
-
-```java
-public synchronized void deposit(double amount)
-public synchronized boolean withdraw(double amount)
-```
-
-### Benefits of Synchronized Methods
-- **Automatic Locking**: JVM handles lock acquisition and release
-- **Method-Level Protection**: Entire method execution is atomic
-- **Simplicity**: No explicit lock management required
-
-### Potential Issues with Current Implementation
-
-#### 1. Race Conditions in Transfer Operations
-```java
-public void transferTo(BankAccount target, double amount) {
-    if (withdraw(amount)) {
-        target.deposit(amount);
-        // Potential issue: Gap between withdraw and deposit
+class BankAccount {
+    private String accountHolder;
+    private double balance;
+    
+    public BankAccount(String accountHolder, double initialBalance) {
+        this.accountHolder = accountHolder;
+        this.balance = initialBalance;
+    }
+    
+    public synchronized void deposit(double amount) {
+        balance += amount;
+        System.out.printf("[%s] Deposited: %.2f | New Balance: %.2f%n", 
+                          accountHolder, amount, balance);
+    }
+    
+    public synchronized boolean withdraw(double amount) {
+        if (amount > balance) {
+            System.out.printf("[%s] Withdrawal failed (Insufficient funds): %.2f | Balance: %.2f%n", 
+                              accountHolder, amount, balance);
+            return false;
+        }
+        balance -= amount;
+        System.out.printf("[%s] Withdrew: %.2f | New Balance: %.2f%n", 
+                          accountHolder, amount, balance);
+        return true;
+    }
+    
+    public synchronized double getBalance() {
+        return balance;
     }
 }
 ```
 
-**Problem**: The transfer operation is not atomic. Between the `withdraw()` and `deposit()` calls, other threads could interfere.
+**Key features:**
+- All methods are `synchronized` - only one thread can access any method at a time
+- Deposit always succeeds and adds to balance
+- Withdrawal checks for sufficient funds before proceeding
+- All operations print their results immediately
 
-#### 2. Deadlock Vulnerability
-The current implementation is susceptible to deadlocks in the following scenario:
-
-**Deadlock Scenario:**
-```
-Thread 1: account1.transferTo(account2, amount)
-Thread 2: account2.transferTo(account1, amount)
-```
-
-**What happens:**
-1. Thread 1 locks account1 (in withdraw)
-2. Thread 2 locks account2 (in withdraw) 
-3. Thread 1 tries to lock account2 (in deposit) - BLOCKED
-4. Thread 2 tries to lock account1 (in deposit) - BLOCKED
-5. **DEADLOCK OCCURS**
-
-#### 3. Unsynchronized getBalance()
+### 3. TransactionTask Class
 ```java
-public double getBalance() {
-    return balance;  // Not synchronized - potential race condition
-}
-```
-
-## Best Practices Present in Original Code
-
-### 1. Proper Exception Handling
-```java
-try {
-    Thread.sleep(500);
-} catch (InterruptedException e) {
-    Thread.currentThread().interrupt();  // Restores interrupt status
-}
-```
-
-### 2. Thread Lifecycle Management
-```java
-t1.start();
-t2.start();
-
-try {
-    t1.join();  // Wait for thread completion
-    t2.join();
-} catch (InterruptedException e) {
-    Thread.currentThread().interrupt();
-}
-```
-
-### 3. Defensive Programming
-- Balance validation before withdrawal
-- Conditional transfer logic
-- Comprehensive logging for debugging
-
-### 4. Clean Object-Oriented Design
-- Clear separation of concerns
-- Encapsulation of account data
-- Immutable task configuration
-
-## Deadlock Conditions Analysis
-
-### The Four Coffman Conditions
-1. **Mutual Exclusion**: ✓ Present (synchronized methods)
-2. **Hold and Wait**: ✓ Present (transfer holds one lock, waits for another)
-3. **No Preemption**: ✓ Present (synchronized locks cannot be interrupted)
-4. **Circular Wait**: ✓ **POSSIBLE** (cross-transfers can create circular dependency)
-
-### Current Deadlock Risk
-The system satisfies all four Coffman conditions, making deadlock possible when:
-- Multiple threads perform transfers between the same accounts
-- Transfers occur in opposite directions simultaneously
-
-## Testing Scenarios
-
-### Normal Operation Flow
-```
-Initial State: Khethokuhle=$200, Nokwanda=$200
-Thread 1: Operates on (Khethokuhle → Nokwanda)
-Thread 2: Operates on (Nokwanda → Khethokuhle)
-Each performs 5 random operations with 500ms delays
-```
-
-### Money Conservation
-The system should maintain total money conservation:
-```
-Initial Total: $400
-Final Total: Should remain $400 (unless operations fail due to insufficient funds)
-```
-
-## Potential Improvements
-
-### 1. Atomic Transfer Operations
-Implement transfers as single synchronized block:
-```java
-public synchronized void transferTo(BankAccount target, double amount) {
-    synchronized(target) {
-        // Atomic transfer logic
+class TransactionTask implements Runnable {
+    private final BankAccount account1;
+    
+    public TransactionTask(BankAccount a1) {
+        this.account1 = a1;
+    }
+    
+    @Override
+    public void run() {
+        for (int i = 0; i < 7; i++) {
+            double amount = Math.random() * 100;  // Random amount 0-100
+            int action = (int) (Math.random() * 2);  // 0 or 1
+            
+            switch (action) {
+                case 0: account1.deposit(amount); break;
+                case 1: account1.withdraw(amount); break;
+            }
+            
+            try {
+                Thread.sleep(1000); // Wait 1 second between transactions
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }
 ```
 
-### 2. Deadlock Prevention
-- Implement ordered locking (always lock accounts in consistent order)
-- Use timeout-based locking mechanisms
-- Avoid nested synchronization where possible
+**What each thread does:**
+- Performs exactly 7 random transactions
+- Each transaction is either a deposit (case 0) or withdrawal (case 1)
+- Random amounts between 0 and 100
+- Waits 1 second between each transaction
+- All 5 threads do this simultaneously on the same account
 
-### 3. Enhanced Error Handling
-- Custom exception types for banking operations
-- More detailed transaction logging
-- Input validation for amounts
+## Multithreading Behavior
 
-### 4. Thread-Safe Balance Inquiry
-```java
-public synchronized double getBalance() {
-    return balance;
-}
+### Thread Safety Implementation
+The code uses **method-level synchronization** on the BankAccount:
+- `synchronized` keyword on all methods means only one thread can execute any BankAccount method at a time
+- This prevents race conditions where multiple threads could read/modify the balance simultaneously
+- Each transaction (deposit/withdraw) is atomic - it either completes fully or not at all
+
+### Execution Flow
+1. All 5 threads start simultaneously
+2. Each thread tries to perform transactions on the same account
+3. Only one thread can access the account at any given moment (due to synchronization)
+4. Threads essentially queue up and take turns
+5. Each thread waits 1 second between its own transactions
+6. Total execution time: roughly 35 seconds (7 transactions × 5 threads, but overlapped)
+
+### Output Pattern
+You'll see interleaved output like:
+```
+[Khethokuhle] Deposited: 45.67 | New Balance: 245.67
+[Khethokuhle] Withdrew: 23.45 | New Balance: 222.22
+[Khethokuhle] Withdrawal failed (Insufficient funds): 89.34 | Balance: 15.67
 ```
 
-## Conclusion
+## Deadlock Analysis
 
-The original banking system demonstrates basic thread safety using synchronized methods but is vulnerable to deadlocks during concurrent transfer operations. While the implementation shows good practices in thread lifecycle management and exception handling, it requires improvements to handle the classic "dining philosophers" style deadlock scenario that can occur with bidirectional transfers.
+### Current Status: NO DEADLOCK RISK
+This code **cannot deadlock** because:
+- Only **one shared resource** (single BankAccount)
+- No **nested locking** (methods don't call other synchronized methods)
+- No **circular wait conditions** possible with single resource
 
-The system serves as an excellent learning example for understanding:
-- Basic thread synchronization
-- Deadlock conditions and causes
-- Race condition prevention
-- Concurrent programming challenges in financial systems
+### Why Deadlock Isn't Possible Here
+Deadlock requires at least two resources where:
+- Thread A holds Resource 1, wants Resource 2
+- Thread B holds Resource 2, wants Resource 1
+
+Since all threads only ever want the same single resource (the BankAccount), they just queue up and wait their turn.
+
+## Best Practices Observed
+
+### ✅ Good Practices
+1. **Proper synchronization** - All shared data access is synchronized
+2. **Exception handling** - InterruptedException is caught and thread interrupt status restored
+3. **Resource cleanup** - Using join() to wait for threads before showing results
+4. **Immutable task state** - TransactionTask fields are final
+
+### ⚠️ Areas for Improvement
+1. **Coarse-grained locking** - Entire methods are synchronized, which may be overkill
+2. **No timeout handling** - Threads could wait indefinitely
+3. **Console I/O in synchronized block** - Printing happens while holding the lock
+4. **No graceful shutdown mechanism**
+
+## Performance Characteristics
+
+- **Throughput**: Limited by synchronization - only one transaction at a time
+- **Latency**: Each transaction must wait for lock acquisition
+- **Scalability**: Adding more threads won't increase throughput, just contention
+
+## Commented Code Analysis
+
+The code has commented sections for a second account:
+```java
+//BankAccount nb = new BankAccount("Nokwanda", 200);
+//private final BankAccount account2;
+//System.out.printf("Nokwanda: %.2f%n", nb.getBalance());
+```
+
+If these were uncommented and used, **deadlock would become possible** if transfers between accounts were implemented without proper lock ordering.
+
+## Summary
+
+This is a well-structured, thread-safe banking simulation that demonstrates:
+- Safe concurrent access to shared resources
+- Proper thread lifecycle management  
+- Basic synchronization techniques
+- Deadlock-free design (by having only one shared resource)
+
+The code serves as a good foundation for learning multithreading concepts, with clear opportunities for enhancement as complexity increases.
