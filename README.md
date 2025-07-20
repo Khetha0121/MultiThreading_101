@@ -174,7 +174,7 @@ The code has commented sections for a second account:
 //System.out.printf("Nokwanda: %.2f%n", nb.getBalance());
 ```
 
-If these were uncommented and used, **deadlock would become possible** if transfers between accounts were implemented without proper lock ordering.
+If these were uncommented and used, **deadlock would become possible** if transfers between accounts were implemented without proper lock ordering. Code will be extended to accomodate transfers between bank account holders without risking deadlock. Details to follow.
 
 ## Summary
 
