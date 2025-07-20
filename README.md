@@ -1,6 +1,6 @@
 # Banking Simulation Code Documentation
 
-## Current Code Analysis
+## Code Analysis
 
 This Java banking simulation demonstrates basic multithreading with a single shared bank account accessed by multiple concurrent threads.
 
